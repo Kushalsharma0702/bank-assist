@@ -1,0 +1,22 @@
+# These packages should be added to backend/requirements.txt
+# for the voice assistant enhancements to work
+
+# Audio Processing & Signal Analysis
+librosa==0.10.0          # Audio feature extraction and processing
+scipy==1.11.0           # Scientific computing (signal processing, spectral analysis)
+
+# Real-time Communication
+websockets==11.0.3      # WebSocket support for real-time interruption detection
+
+# These are likely already in your requirements.txt:
+# fastapi
+# uvicorn
+# pydantic
+# python-dotenv
+# azure-cognitiveservices-speech
+# azure-cognitiveservices-language-translator
+# boto3 (AWS/Bedrock)
+
+# Optional: For development/testing
+pytest==7.4.0           # Testing framework
+pytest-asyncio==0.21.0  # Async test support

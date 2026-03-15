@@ -1,0 +1,18 @@
+D:\Internship\vsco\.venv\Lib\site-packages\pydub\utils.py:170: RuntimeWarning: Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work
+  warn("Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work", RuntimeWarning)
+INFO:     Started server process [22104]
+INFO:     Waiting for application startup.
+01:34:21 | INFO     | BankingVoiceAgent         | ========================================================================
+01:34:21 | INFO     | BankingVoiceAgent         | \U0001f680 Banking Voice Agent starting up…
+01:34:21 | INFO     | BankingVoiceAgent         |    Languages: ar-SA, bn-BD, de-DE, en-US, es-ES, fil-PH, fr-FR, hi-IN, bn-IN, gu-IN, kn-IN, ml-IN, mr-IN, od-IN, pa-IN, id-ID, it-IT, ja-JP, km-KH, ko-KR, ms-MY, nl-NL, pl-PL, pt-BR, ru-RU, si-LK, sv-SE, ta-IN, ta-LK, te-IN, th-TH, tr-TR, uk-UA, ur-PK, vi-VN, zh-CN, zh-HK, zh-TW
+01:34:21 | INFO     | BankingVoiceAgent         | ========================================================================
+01:34:21 | INFO     | BankingVoiceAgent         | \u23ed Intent router preloading at startup…
+01:34:21 | INFO     | IntentRouter              | Loading sentence-transformers model (all-MiniLM-L6-v2)…
+01:34:25 | INFO     | sentence_transformers.SentenceTransformer | Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+01:34:28 | INFO     | sentence_transformers.SentenceTransformer | Use pytorch device_name: cpu
+01:34:28 | INFO     | IntentRouter              | Encoding 188 intent phrases…
+Batches:   0%|          | 0/6 [00:00<?, ?it/s]Batches:  50%|#####     | 3/6 [00:00<00:00, 23.67it/s]Batches: 100%|##########| 6/6 [00:00<00:00, 27.18it/s]
+01:34:29 | INFO     | IntentRouter              | \u2705 Intent router ready
+01:34:29 | INFO     | BankingVoiceAgent         | \u2705 Intent router ready (preloaded)
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
