@@ -5,12 +5,20 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 AWS_REGION="${AWS_REGION:-ap-south-1}"
 INSTANCE_ID="${1:-i-083a2c776ad95735c}"
 GIT_REPO_URL="${GIT_REPO_URL:-https://github.com/Kushalsharma0702/bank-assist.git}"
 GIT_BRANCH="${GIT_BRANCH:-main}"
 APP_DIR="${APP_DIR:-/opt/banking-voice-agent}"
 BACKEND_PUBLIC_URL="${BACKEND_PUBLIC_URL:-https://d14zu358us4jz7.cloudfront.net}"
+LOCAL_ENV_FILE="${LOCAL_ENV_FILE:-${SCRIPT_DIR}/../backend/.env}"
+LOCAL_ENV_B64=""
+
+if [[ -f "${LOCAL_ENV_FILE}" ]]; then
+  LOCAL_ENV_B64="$(base64 -w 0 "${LOCAL_ENV_FILE}" 2>/dev/null || base64 "${LOCAL_ENV_FILE}" | tr -d '\n')"
+fi
 
 echo "============================================================"
 echo " EC2 Git Deploy via SSM"
@@ -39,11 +47,11 @@ echo "   ✅ SSM Online"
 SSM_PARAMS_FILE="$(mktemp /tmp/ssm_params_XXXXXX.json)"
 trap 'rm -f "${SSM_PARAMS_FILE}"' EXIT
 
-python3 - "${GIT_REPO_URL}" "${GIT_BRANCH}" "${APP_DIR}" "${BACKEND_PUBLIC_URL}" "${SSM_PARAMS_FILE}" << 'PYEOF'
+python3 - "${GIT_REPO_URL}" "${GIT_BRANCH}" "${APP_DIR}" "${BACKEND_PUBLIC_URL}" "${LOCAL_ENV_B64}" "${SSM_PARAMS_FILE}" << 'PYEOF'
 import json
 import sys
 
-repo_url, branch, app_dir, backend_public_url, out_file = sys.argv[1:]
+repo_url, branch, app_dir, backend_public_url, local_env_b64, out_file = sys.argv[1:]
 
 script = r"""#!/bin/bash
 set -euo pipefail
@@ -52,6 +60,7 @@ REPO_URL=__REPO_URL__
 BRANCH=__BRANCH__
 APP_DIR=__APP_DIR__
 BACKEND_PUBLIC_URL=__BACKEND_PUBLIC_URL__
+LOCAL_ENV_B64=__LOCAL_ENV_B64__
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "Docker is not installed on EC2."
@@ -68,6 +77,10 @@ fi
 mkdir -p "$APP_DIR"
 
 if [ ! -d "$APP_DIR/.git" ]; then
+  if [ -f "$APP_DIR/.env" ]; then
+    cp "$APP_DIR/.env" /tmp/banking-voice-agent.env.bak
+  fi
+
   rm -rf "$APP_DIR"
   mkdir -p "$(dirname \"$APP_DIR\")"
 
@@ -84,13 +97,22 @@ fi
 
 cd "$APP_DIR"
 
+if [ ! -f "$APP_DIR/.env" ] && [ -f /tmp/banking-voice-agent.env.bak ]; then
+  cp /tmp/banking-voice-agent.env.bak "$APP_DIR/.env"
+fi
+
+if [ ! -f "$APP_DIR/.env" ] && [ -n "$LOCAL_ENV_B64" ]; then
+  echo "$LOCAL_ENV_B64" | base64 -d > "$APP_DIR/.env"
+fi
+
 git remote set-url origin "$REPO_URL" || true
 git fetch origin "$BRANCH"
 git checkout "$BRANCH"
 git reset --hard "origin/$BRANCH"
 
 if [ ! -f "$APP_DIR/.env" ]; then
-  echo "WARNING: $APP_DIR/.env is missing; backend may fail if required vars are absent."
+  echo "ERROR: $APP_DIR/.env is missing."
+  exit 1
 fi
 
 cat > "$APP_DIR/docker-compose.ec2.yml" <<EOF
@@ -180,6 +202,7 @@ script = (
     .replace("__BRANCH__", branch)
     .replace("__APP_DIR__", app_dir)
     .replace("__BACKEND_PUBLIC_URL__", backend_public_url)
+  .replace("__LOCAL_ENV_B64__", local_env_b64)
 )
 
 with open(out_file, "w", encoding="utf-8") as f:
