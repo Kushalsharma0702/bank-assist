@@ -53,8 +53,7 @@ SSM_PARAMS_FILE="$(mktemp /tmp/ssm_params_XXXXXX.json)"
 trap 'rm -f "${SSM_PARAMS_FILE}"' EXIT
 
 python3 - "${GIT_REPO_URL}" "${GIT_BRANCH}" "${APP_DIR}" "${BACKEND_PUBLIC_URL}" "${LOCAL_ENV_B64}" "${SSM_PARAMS_FILE}" << 'PYEOF'
-import json
-import sys
+import json, sys
 
 repo_url, branch, app_dir, backend_public_url, local_env_b64, out_file = sys.argv[1:]
 
@@ -74,85 +73,60 @@ echo "Docker is not installed on EC2."
 exit 1
 fi
 
-COMPOSE_CMD=""
 if docker compose version >/dev/null 2>&1; then
 COMPOSE_CMD="docker compose"
 elif command -v docker-compose >/dev/null 2>&1; then
 COMPOSE_CMD="docker-compose"
+else
+echo "Docker Compose not found."
+exit 1
 fi
-
-# ─────────────────────────────────────────────────────
-
-# CLONE OR UPDATE REPO
-
-# ─────────────────────────────────────────────────────
 
 mkdir -p "$APP_DIR"
 
+# Clone or update repo
+
 if [ ! -d "$APP_DIR/.git" ]; then
-echo "[INFO] Cloning repository..."
-
-if [ -f "$APP_DIR/.env" ]; then
-cp "$APP_DIR/.env" /tmp/banking-voice-agent.env.bak
-fi
-
+echo "[INFO] Cloning repo..."
 rm -rf "$APP_DIR"
 mkdir -p "$(dirname "$APP_DIR")"
 
 if ! git clone --branch "$BRANCH" "$REPO_URL" "$APP_DIR"; then
 if echo "$REPO_URL" | grep -q '^[git@github.com](mailto:git@github.com):'; then
 HTTPS_URL="https://github.com/${REPO_URL#git@github.com:}"
-echo "SSH clone failed, retrying with HTTPS: $HTTPS_URL"
 git clone --branch "$BRANCH" "$HTTPS_URL" "$APP_DIR"
 else
 exit 1
 fi
 fi
-
 else
-echo "[INFO] Repo exists, pulling latest code..."
+echo "[INFO] Updating repo..."
 cd "$APP_DIR"
 git fetch origin "$BRANCH"
 git reset --hard "origin/$BRANCH"
 fi
 
-# ─────────────────────────────────────────────────────
-
-# ENV SETUP
-
-# ─────────────────────────────────────────────────────
-
 cd "$APP_DIR"
 
-if [ ! -f "$APP_DIR/.env" ] && [ -f /tmp/banking-voice-agent.env.bak ]; then
-cp /tmp/banking-voice-agent.env.bak "$APP_DIR/.env"
-fi
+# Setup .env
 
 if [ ! -f "$APP_DIR/.env" ] && [ -n "$LOCAL_ENV_B64" ]; then
 echo "$LOCAL_ENV_B64" | base64 -d > "$APP_DIR/.env"
 fi
 
-if [ ! -f "$APP_DIR/.env" ]; then
-echo "ERROR: .env missing"
-exit 1
-fi
-
 # Clean quotes
 
+if [ -f "$APP_DIR/.env" ]; then
 sed -i -E 's/^([A-Za-z_][A-Za-z0-9_]*)="(.*)"$/\1=\2/' "$APP_DIR/.env"
 sed -i -E "s/^([A-Za-z_][A-Za-z0-9_]*)='(.*)'$/\1=\2/" "$APP_DIR/.env"
+fi
 
-# ─────────────────────────────────────────────────────
-
-# DOCKER COMPOSE FILE
-
-# ─────────────────────────────────────────────────────
+# Create docker compose
 
 cat > "$APP_DIR/docker-compose.ec2.yml" <<EOF
 services:
 backend:
-build:
-context: ./backend
+build: ./backend
 image: banking-backend:latest
 container_name: banking-backend
 restart: unless-stopped
@@ -175,36 +149,16 @@ ports:
 - "80:80"
 EOF
 
-# ─────────────────────────────────────────────────────
-
-# CLEAN OLD IMAGES
-
-# ─────────────────────────────────────────────────────
-
 docker image prune -f >/dev/null 2>&1 || true
 
-# ─────────────────────────────────────────────────────
-
-# DEPLOY
-
-# ─────────────────────────────────────────────────────
-
-if [ -n "$COMPOSE_CMD" ]; then
-echo "[INFO] Deploying via docker compose..."
+echo "[INFO] Deploying containers..."
 $COMPOSE_CMD -f docker-compose.ec2.yml down || true
 $COMPOSE_CMD -f docker-compose.ec2.yml up -d --build --remove-orphans
-else
-echo "Docker Compose not found."
-exit 1
-fi
 
 echo "--- Running containers ---"
-docker ps
+docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
 
-echo "--- Health check ---"
-curl -f http://localhost:8080 || echo "Backend not responding"
-
-echo "--- Current revision ---"
+echo "--- Revision ---"
 git rev-parse --short HEAD
 """
 
@@ -222,7 +176,6 @@ json.dump({"commands": [script]}, f)
 print("SSM params written:", out_file)
 PYEOF
 
-echo ""
 echo "▶ Sending command via SSM…"
 
 CMD_ID=$(aws ssm send-command 
@@ -243,18 +196,15 @@ STATUS=$(aws ssm get-command-invocation
 --instance-id "${INSTANCE_ID}" 
 --query "Status" --output text 2>/dev/null || echo "Pending")
 
-```
 echo "[${i}/40] ${STATUS}"
 
 if [[ "${STATUS}" == "Success" ]]; then
-    echo "✅ Deployment successful"
-    exit 0
+echo "✅ Deployment successful"
+exit 0
 elif [[ "${STATUS}" =~ ^(Failed|Cancelled|TimedOut) ]]; then
-    echo "❌ Deployment failed"
-    exit 1
+echo "❌ Deployment failed"
+exit 1
 fi
-```
-
 done
 
 echo "❌ Timeout"
