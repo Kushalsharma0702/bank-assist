@@ -10,10 +10,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AWS_REGION="${AWS_REGION:-ap-south-1}"
 INSTANCE_ID="${1:-i-083a2c776ad95735c}"
 GIT_REPO_URL="${GIT_REPO_URL:-https://github.com/Kushalsharma0702/bank-assist.git}"
-
-# Remove optional wrapping quotes in .env values (KEY="value" -> KEY=value).
-sed -i -E 's/^([A-Za-z_][A-Za-z0-9_]*)="(.*)"$/\1=\2/' "$APP_DIR/.env"
-sed -i -E "s/^([A-Za-z_][A-Za-z0-9_]*)='(.*)'$/\1=\2/" "$APP_DIR/.env"
 GIT_BRANCH="${GIT_BRANCH:-main}"
 APP_DIR="${APP_DIR:-/opt/banking-voice-agent}"
 BACKEND_PUBLIC_URL="${BACKEND_PUBLIC_URL:-https://d14zu358us4jz7.cloudfront.net}"
@@ -118,6 +114,10 @@ if [ ! -f "$APP_DIR/.env" ]; then
   echo "ERROR: $APP_DIR/.env is missing."
   exit 1
 fi
+
+# Remove optional wrapping quotes in .env values (KEY="value" -> KEY=value).
+sed -i -E 's/^([A-Za-z_][A-Za-z0-9_]*)="(.*)"$/\1=\2/' "$APP_DIR/.env"
+sed -i -E "s/^([A-Za-z_][A-Za-z0-9_]*)='(.*)'$/\1=\2/" "$APP_DIR/.env"
 
 cat > "$APP_DIR/docker-compose.ec2.yml" <<EOF
 services:
