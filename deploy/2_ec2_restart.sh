@@ -22,7 +22,11 @@ LOCAL_ENV_FILE="${LOCAL_ENV_FILE:-${SCRIPT_DIR}/../backend/.env}"
 LOCAL_ENV_B64=""
 
 if [[ -f "${LOCAL_ENV_FILE}" ]]; then
+<<<<<<< HEAD
 LOCAL_ENV_B64="$(base64 -w 0 "${LOCAL_ENV_FILE}" 2>/dev/null || base64 "${LOCAL_ENV_FILE}" | tr -d '\n')"
+=======
+  LOCAL_ENV_B64="$(base64 -w 0 "${LOCAL_ENV_FILE}" 2>/dev/null || base64 "${LOCAL_ENV_FILE}" | tr -d '\n')"
+>>>>>>> 1d4a2ae (preserve and bootstrap EC2 env file during git deploy)
 fi
 
 echo "============================================================"
@@ -53,13 +57,19 @@ SSM_PARAMS_FILE="$(mktemp /tmp/ssm_params_XXXXXX.json)"
 trap 'rm -f "${SSM_PARAMS_FILE}"' EXIT
 
 python3 - "${GIT_REPO_URL}" "${GIT_BRANCH}" "${APP_DIR}" "${BACKEND_PUBLIC_URL}" "${LOCAL_ENV_B64}" "${SSM_PARAMS_FILE}" << 'PYEOF'
+<<<<<<< HEAD
 import json, sys
+=======
+import json
+import sys
+>>>>>>> 1d4a2ae (preserve and bootstrap EC2 env file during git deploy)
 
 repo_url, branch, app_dir, backend_public_url, local_env_b64, out_file = sys.argv[1:]
 
 script = r"""#!/bin/bash
 set -euo pipefail
 
+<<<<<<< HEAD
 REPO_URL=**REPO_URL**
 BRANCH=**BRANCH**
 APP_DIR=**APP_DIR**
@@ -67,6 +77,13 @@ BACKEND_PUBLIC_URL=**BACKEND_PUBLIC_URL**
 LOCAL_ENV_B64=**LOCAL_ENV_B64**
 
 echo "[INFO] Starting deployment..."
+=======
+REPO_URL=__REPO_URL__
+BRANCH=__BRANCH__
+APP_DIR=__APP_DIR__
+BACKEND_PUBLIC_URL=__BACKEND_PUBLIC_URL__
+LOCAL_ENV_B64=__LOCAL_ENV_B64__
+>>>>>>> 1d4a2ae (preserve and bootstrap EC2 env file during git deploy)
 
 if ! command -v docker >/dev/null 2>&1; then
 echo "Docker is not installed on EC2."
@@ -89,7 +106,17 @@ fi
 
 mkdir -p "$APP_DIR"
 
+<<<<<<< HEAD
 # Clone or update repo
+=======
+if [ ! -d "$APP_DIR/.git" ]; then
+  if [ -f "$APP_DIR/.env" ]; then
+    cp "$APP_DIR/.env" /tmp/banking-voice-agent.env.bak
+  fi
+
+  rm -rf "$APP_DIR"
+  mkdir -p "$(dirname \"$APP_DIR\")"
+>>>>>>> 1d4a2ae (preserve and bootstrap EC2 env file during git deploy)
 
 if [ ! -d "$APP_DIR/.git" ]; then
 echo "[INFO] Cloning repo..."
@@ -117,6 +144,22 @@ cd "$APP_DIR"
 
 if [ ! -f "$APP_DIR/.env" ] && [ -n "$LOCAL_ENV_B64" ]; then
 echo "$LOCAL_ENV_B64" | base64 -d > "$APP_DIR/.env"
+if [ ! -f "$APP_DIR/.env" ] && [ -f /tmp/banking-voice-agent.env.bak ]; then
+  cp /tmp/banking-voice-agent.env.bak "$APP_DIR/.env"
+fi
+
+if [ ! -f "$APP_DIR/.env" ] && [ -n "$LOCAL_ENV_B64" ]; then
+  echo "$LOCAL_ENV_B64" | base64 -d > "$APP_DIR/.env"
+fi
+
+git remote set-url origin "$REPO_URL" || true
+git fetch origin "$BRANCH"
+git checkout "$BRANCH"
+git reset --hard "origin/$BRANCH"
+
+if [ ! -f "$APP_DIR/.env" ]; then
+  echo "ERROR: $APP_DIR/.env is missing."
+  exit 1
 fi
 
 # Clean quotes
@@ -216,11 +259,19 @@ git rev-parse --short HEAD
 """
 
 script = (
+
 script.replace("**REPO_URL**", repo_url)
 .replace("**BRANCH**", branch)
 .replace("**APP_DIR**", app_dir)
 .replace("**BACKEND_PUBLIC_URL**", backend_public_url)
 .replace("**LOCAL_ENV_B64**", local_env_b64)
+
+    script.replace("__REPO_URL__", repo_url)
+    .replace("__BRANCH__", branch)
+    .replace("__APP_DIR__", app_dir)
+    .replace("__BACKEND_PUBLIC_URL__", backend_public_url)
+  .replace("__LOCAL_ENV_B64__", local_env_b64)
+
 )
 
 with open(out_file, "w") as f:
