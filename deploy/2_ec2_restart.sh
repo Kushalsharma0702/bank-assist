@@ -73,13 +73,18 @@ echo "Docker is not installed on EC2."
 exit 1
 fi
 
+COMPOSE_CMD=""
 if docker compose version >/dev/null 2>&1; then
 COMPOSE_CMD="docker compose"
 elif command -v docker-compose >/dev/null 2>&1; then
+
 COMPOSE_CMD="docker-compose"
 else
 echo "Docker Compose not found."
 exit 1
+
+  COMPOSE_CMD="docker-compose"
+
 fi
 
 mkdir -p "$APP_DIR"
@@ -149,11 +154,59 @@ ports:
 - "80:80"
 EOF
 
+
 docker image prune -f >/dev/null 2>&1 || true
 
 echo "[INFO] Deploying containers..."
 $COMPOSE_CMD -f docker-compose.ec2.yml down || true
 $COMPOSE_CMD -f docker-compose.ec2.yml up -d --build --remove-orphans
+
+OLD_IMAGES=$(docker images --format '{{.Repository}}:{{.Tag}}' | grep -E 'banking-voice-agent-(backend|frontend)|844605843483.dkr.ecr.ap-south-1.amazonaws.com/banking-voice-agent-' || true)
+if [ -n "$OLD_IMAGES" ]; then
+  echo "Removing old images:"
+  echo "$OLD_IMAGES"
+  docker rmi -f $OLD_IMAGES >/dev/null 2>&1 || true
+fi
+
+docker image prune -f >/dev/null 2>&1 || true
+
+if [ -n "$COMPOSE_CMD" ]; then
+  $COMPOSE_CMD -f docker-compose.ec2.yml down || true
+  $COMPOSE_CMD -f docker-compose.ec2.yml up -d --build --remove-orphans
+else
+  echo "Docker Compose not found. Using docker build/run fallback."
+
+  docker rm -f banking-frontend banking-backend >/dev/null 2>&1 || true
+  for PORT in 8080 80; do
+    CONFLICT_IDS=$(docker ps -q --filter "publish=${PORT}")
+    if [ -n "$CONFLICT_IDS" ]; then
+      docker rm -f $CONFLICT_IDS >/dev/null 2>&1 || true
+    fi
+  done
+
+  docker build -t banking-voice-agent-backend:git ./backend
+  docker build --build-arg VITE_API_URL="$BACKEND_PUBLIC_URL" \
+    -t banking-voice-agent-frontend:git ./frontend
+
+  docker network create banking-net >/dev/null 2>&1 || true
+
+  docker run -d \
+    --name banking-backend \
+    --restart unless-stopped \
+    --network banking-net \
+    --network-alias backend \
+    --env-file .env \
+    -p 8080:8080 \
+    banking-voice-agent-backend:git
+
+  docker run -d \
+    --name banking-frontend \
+    --restart unless-stopped \
+    --network banking-net \
+    -p 80:80 \
+    banking-voice-agent-frontend:git
+fi
+
 
 echo "--- Running containers ---"
 docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
