@@ -7,7 +7,7 @@ set -euo pipefail
 
 AWS_REGION="${AWS_REGION:-ap-south-1}"
 INSTANCE_ID="${1:-i-083a2c776ad95735c}"
-GIT_REPO_URL="${GIT_REPO_URL:-git@github.com:Kushalsharma0702/bank-assist.git}"
+GIT_REPO_URL="${GIT_REPO_URL:-https://github.com/Kushalsharma0702/bank-assist.git}"
 GIT_BRANCH="${GIT_BRANCH:-main}"
 APP_DIR="${APP_DIR:-/opt/banking-voice-agent}"
 BACKEND_PUBLIC_URL="${BACKEND_PUBLIC_URL:-https://d14zu358us4jz7.cloudfront.net}"
